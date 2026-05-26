@@ -1,22 +1,18 @@
 import { z } from "zod";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-import { router, publicProcedure } from "./init";
+import { router, protectedProcedure } from "./init";
 import { db } from "../db/client";
 import { tasks, taskAuditLog } from "../db/schema";
 import { extractTaskFromText, transcribeAndExtract } from "../ai/extract-task";
 import { checkRateLimit } from "../ai/rate-limiter";
 
-// Hardcoded for MVP — will come from auth context later
-const DEMO_ORG_ID = "00000000-0000-0000-0000-000000000001";
-const DEMO_PLAN_TIER = "free";
-
 export const appRouter = router({
   ai: router({
-    extractFromText: publicProcedure
+    extractFromText: protectedProcedure
       .input(z.object({ text: z.string().min(3).max(5000) }))
-      .mutation(async ({ input }) => {
-        const rate = checkRateLimit(DEMO_ORG_ID, DEMO_PLAN_TIER);
+      .mutation(async ({ input, ctx }) => {
+        const rate = checkRateLimit(ctx.orgId, "free");
         if (!rate.allowed) {
           throw new TRPCError({
             code: "TOO_MANY_REQUESTS",
@@ -27,15 +23,15 @@ export const appRouter = router({
         return { ...extracted, rateLimitRemaining: rate.remaining };
       }),
 
-    extractFromVoice: publicProcedure
+    extractFromVoice: protectedProcedure
       .input(
         z.object({
           audioBase64: z.string().min(1),
           mimeType: z.string().default("audio/webm"),
         })
       )
-      .mutation(async ({ input }) => {
-        const rate = checkRateLimit(DEMO_ORG_ID, DEMO_PLAN_TIER);
+      .mutation(async ({ input, ctx }) => {
+        const rate = checkRateLimit(ctx.orgId, "free");
         if (!rate.allowed) {
           throw new TRPCError({
             code: "TOO_MANY_REQUESTS",
@@ -46,7 +42,7 @@ export const appRouter = router({
         return { ...result, rateLimitRemaining: rate.remaining };
       }),
 
-    confirmAndSave: publicProcedure
+    confirmAndSave: protectedProcedure
       .input(
         z.object({
           title: z.string().min(1).max(500),
@@ -56,21 +52,23 @@ export const appRouter = router({
           dueAt: z.string().datetime().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const [row] = await db
           .insert(tasks)
           .values({
-            orgId: DEMO_ORG_ID,
+            orgId: ctx.orgId,
             title: input.title,
             description: input.description ?? null,
             priority: input.priority ?? "medium",
             dueAt: input.dueAt ? new Date(input.dueAt) : null,
             source: "ai_extracted",
+            createdBy: ctx.userId,
           })
           .returning();
 
         await db.insert(taskAuditLog).values({
           taskId: row.id,
+          userId: ctx.userId,
           action: "created",
           diff: JSON.stringify({ title: input.title, source: "ai_extracted", patient: input.patient }),
         });
@@ -80,7 +78,7 @@ export const appRouter = router({
   }),
 
   tasks: router({
-    list: publicProcedure
+    list: protectedProcedure
       .input(
         z
           .object({
@@ -90,8 +88,8 @@ export const appRouter = router({
           })
           .optional()
       )
-      .query(async ({ input }) => {
-        const conditions = [eq(tasks.orgId, DEMO_ORG_ID)];
+      .query(async ({ input, ctx }) => {
+        const conditions = [eq(tasks.orgId, ctx.orgId)];
         if (input?.status) {
           conditions.push(eq(tasks.status, input.status));
         }
@@ -115,17 +113,17 @@ export const appRouter = router({
         return rows;
       }),
 
-    getById: publicProcedure
+    getById: protectedProcedure
       .input(z.object({ id: z.string().uuid() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const [row] = await db
           .select()
           .from(tasks)
-          .where(and(eq(tasks.id, input.id), eq(tasks.orgId, DEMO_ORG_ID)));
+          .where(and(eq(tasks.id, input.id), eq(tasks.orgId, ctx.orgId)));
         return row ?? null;
       }),
 
-    create: publicProcedure
+    create: protectedProcedure
       .input(
         z.object({
           title: z.string().min(1).max(500),
@@ -134,20 +132,22 @@ export const appRouter = router({
           dueAt: z.string().datetime().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const [row] = await db
           .insert(tasks)
           .values({
-            orgId: DEMO_ORG_ID,
+            orgId: ctx.orgId,
             title: input.title,
             description: input.description ?? null,
             priority: input.priority ?? "medium",
             dueAt: input.dueAt ? new Date(input.dueAt) : null,
+            createdBy: ctx.userId,
           })
           .returning();
 
         await db.insert(taskAuditLog).values({
           taskId: row.id,
+          userId: ctx.userId,
           action: "created",
           diff: JSON.stringify({ title: input.title }),
         });
@@ -155,7 +155,7 @@ export const appRouter = router({
         return row;
       }),
 
-    update: publicProcedure
+    update: protectedProcedure
       .input(
         z.object({
           id: z.string().uuid(),
@@ -168,7 +168,7 @@ export const appRouter = router({
           dueAt: z.string().datetime().nullable().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;
 
         const values: Record<string, unknown> = { updatedAt: new Date() };
@@ -183,12 +183,13 @@ export const appRouter = router({
         const [row] = await db
           .update(tasks)
           .set(values)
-          .where(and(eq(tasks.id, id), eq(tasks.orgId, DEMO_ORG_ID)))
+          .where(and(eq(tasks.id, id), eq(tasks.orgId, ctx.orgId)))
           .returning();
 
         if (row) {
           await db.insert(taskAuditLog).values({
             taskId: id,
+            userId: ctx.userId,
             action: "updated",
             diff: JSON.stringify(updates),
           });
@@ -197,12 +198,12 @@ export const appRouter = router({
         return row ?? null;
       }),
 
-    delete: publicProcedure
+    delete: protectedProcedure
       .input(z.object({ id: z.string().uuid() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const [deleted] = await db
           .delete(tasks)
-          .where(and(eq(tasks.id, input.id), eq(tasks.orgId, DEMO_ORG_ID)))
+          .where(and(eq(tasks.id, input.id), eq(tasks.orgId, ctx.orgId)))
           .returning();
         return !!deleted;
       }),

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uuid, pgEnum, boolean, integer } from "drizzle-orm/pg-core";
 
 export const taskStatusEnum = pgEnum("task_status", [
   "open",
@@ -30,8 +30,11 @@ export const userRoleEnum = pgEnum("user_role", [
 
 export const orgs = pgTable("orgs", {
   id: uuid("id").primaryKey().defaultRandom(),
+  clerkOrgId: text("clerk_org_id").unique(),
   name: text("name").notNull(),
   planTier: text("plan_tier").notNull().default("free"),
+  mfaRequired: boolean("mfa_required").notNull().default(false),
+  sessionTimeoutMinutes: integer("session_timeout_minutes").notNull().default(15),
   settings: text("settings"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -39,6 +42,7 @@ export const orgs = pgTable("orgs", {
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
+  clerkUserId: text("clerk_user_id").unique(),
   orgId: uuid("org_id")
     .notNull()
     .references(() => orgs.id),
@@ -87,7 +91,7 @@ export const taskAuditLog = pgTable("task_audit_log", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export type Task = typeof tasks.$inferSelect;
-export type NewTask = typeof tasks.$inferInsert;
+export type Task = typeof tasks.;
+export type NewTask = typeof tasks.;
 export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
 export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
