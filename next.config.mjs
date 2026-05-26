@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  basePath: "/medcorp",
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   async headers() {
