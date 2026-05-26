@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { ClerkProvider } from "@clerk/nextjs";
 import { SessionTimeoutProvider } from "@/components/session-timeout";
 import "./globals.css";
 
@@ -27,27 +26,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
-        >
-          <nav className="bg-white border-b border-gray-200 px-4 py-3">
-            <div className="max-w-2xl mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold text-blue-600">MedTask</span>
-                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
-                  AI
-                </span>
-              </div>
-              <span className="text-xs text-gray-400">Demo</span>
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
+      >
+        <nav className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="max-w-2xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-blue-600">MedTask</span>
+              <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
+                AI
+              </span>
             </div>
-          </nav>
-          <SessionTimeoutProvider>
-            <main className="px-4 py-6">{children}</main>
-          </SessionTimeoutProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+            <span className="text-xs text-gray-400">Demo</span>
+          </div>
+        </nav>
+        <SessionTimeoutProvider>
+          <main className="px-4 py-6">{children}</main>
+        </SessionTimeoutProvider>
+      </body>
+    </html>
   );
 }
