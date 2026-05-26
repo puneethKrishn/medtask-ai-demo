@@ -8,7 +8,6 @@ const handler = (req: Request) =>
     req,
     router: appRouter,
     createContext: (): Context => ({
-      // MVP: no auth yet. When Clerk is added, extract userId from session here.
       userId: null,
     }),
   });
