@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import { SessionTimeoutProvider } from "@/components/session-timeout";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
