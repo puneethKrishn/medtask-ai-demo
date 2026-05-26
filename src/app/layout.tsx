@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import Script from "next/script";
+import { Suspense } from "react";
+import { AnalyticsProvider } from "@/components/analytics-provider";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
-
-const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -29,22 +28,27 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 font-[family-name:var(--font-geist-sans)]`}
       >
-        {children}
-        {GA4_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`}
-              strategy="afterInteractive"
+        <Suspense>
+          <AnalyticsProvider>{children}</AnalyticsProvider>
+        </Suspense>
+
+        {/* GTM noscript fallback */}
+        {gtmId && (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
             />
-            <Script id="ga4-init" strategy="afterInteractive">
-              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA4_ID}');`}
-            </Script>
-          </>
+          </noscript>
         )}
       </body>
     </html>
