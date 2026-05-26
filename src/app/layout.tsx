@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { SessionTimeoutProvider } from "@/components/session-timeout";
-import { Sidebar } from "@/components/sidebar";
+import Script from "next/script";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
+
+const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -33,14 +34,18 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 font-[family-name:var(--font-geist-sans)]`}
       >
-        <SessionTimeoutProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 ml-[260px]">
-              <div className="p-6 lg:p-8 max-w-5xl">{children}</div>
-            </main>
-          </div>
-        </SessionTimeoutProvider>
+        {children}
+        {GA4_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA4_ID}');`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   );

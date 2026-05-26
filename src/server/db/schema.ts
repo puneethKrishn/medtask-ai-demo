@@ -70,7 +70,17 @@ export const taskAuditLog = mysqlTable("task_audit_log", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const waitlistSegmentEnum = ["solo_doc", "clinic", "hospital", "other"] as const;
+
+export const waitlistEmails = mysqlTable("waitlist_emails", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => randomUUID()),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  segment: mysqlEnum("segment", waitlistSegmentEnum),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
 export type TaskStatus = (typeof taskStatusEnum)[number];
 export type TaskPriority = (typeof taskPriorityEnum)[number];
+export type WaitlistEmail = typeof waitlistEmails.$inferSelect;
