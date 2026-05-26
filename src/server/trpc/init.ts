@@ -9,32 +9,22 @@ const t = initTRPC.context<Context>().create();
 
 /**
  * Audit middleware — logs every mutation to the audit trail.
- * Reads are not audited per HIPAA minimum-necessary principle
- * (queries don't modify PHI).
+ * Queries not audited per HIPAA minimum-necessary principle.
  */
-const auditMiddleware = t.middleware(async ({ path, type, getRawInput, ctx, next }) => {
+const auditMiddleware = t.middleware(async ({ path, type, ctx, next }) => {
   const result = await next();
 
   if (type === "mutation") {
-    const rawInput = await getRawInput();
     writeAuditEntry({
-      taskId: extractTaskId(rawInput),
+      taskId: null,
       userId: ctx.userId,
       action: path,
-      input: JSON.stringify(rawInput ?? {}),
+      input: "{}",
     });
   }
 
   return result;
 });
-
-function extractTaskId(input: unknown): string | null {
-  if (input && typeof input === "object" && "id" in input) {
-    const id = (input as Record<string, unknown>).id;
-    if (typeof id === "string") return id;
-  }
-  return null;
-}
 
 export const router = t.router;
 export const publicProcedure = t.procedure.use(auditMiddleware);
