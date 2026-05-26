@@ -14,7 +14,7 @@ export function SessionTimeoutProvider({ children }: { children: React.ReactNode
   const handleTimeout = useCallback(() => {
     // Clear any sensitive client state and redirect
     setShowWarning(false);
-    window.location.href = "/?session=expired";
+    window.location.href = "/medcorp/?session=expired";
   }, []);
 
   const resetTimer = useCallback(() => {

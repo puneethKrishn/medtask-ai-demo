@@ -76,11 +76,13 @@ interface ExtractedFields {
 
 // --- API helpers ---
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "/medcorp";
+
 async function fetchTasks(filter?: string): Promise<Task[]> {
   const input = filter ? JSON.stringify({ status: filter }) : undefined;
   const url = input
-    ? `/api/trpc/tasks.list?input=${encodeURIComponent(JSON.stringify({ json: JSON.parse(input) }))}`
-    : `/api/trpc/tasks.list`;
+    ? `${BASE_PATH}/api/trpc/tasks.list?input=${encodeURIComponent(JSON.stringify({ json: JSON.parse(input) }))}`
+    : `${BASE_PATH}/api/trpc/tasks.list`;
   const res = await fetch(url);
   const data = await res.json();
   return data.result?.data?.json ?? [];
@@ -90,7 +92,7 @@ async function createTask(input: {
   title: string;
   priority: string;
 }): Promise<Task> {
-  const res = await fetch("/api/trpc/tasks.create", {
+  const res = await fetch(`${BASE_PATH}/api/trpc/tasks.create`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ json: input }),
@@ -103,7 +105,7 @@ async function updateTask(input: {
   id: string;
   status?: string;
 }): Promise<Task> {
-  const res = await fetch("/api/trpc/tasks.update", {
+  const res = await fetch(`${BASE_PATH}/api/trpc/tasks.update`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ json: input }),
@@ -113,7 +115,7 @@ async function updateTask(input: {
 }
 
 async function deleteTaskApi(id: string): Promise<void> {
-  await fetch("/api/trpc/tasks.delete", {
+  await fetch(`${BASE_PATH}/api/trpc/tasks.delete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ json: { id } }),
@@ -121,7 +123,7 @@ async function deleteTaskApi(id: string): Promise<void> {
 }
 
 async function extractFromText(text: string): Promise<ExtractedFields> {
-  const res = await fetch("/api/trpc/ai.extractFromText", {
+  const res = await fetch(`${BASE_PATH}/api/trpc/ai.extractFromText`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ json: { text } }),
@@ -146,7 +148,7 @@ async function extractFromVoice(
   audioBase64: string,
   mimeType: string
 ): Promise<{ transcript: string; task: ExtractedFields }> {
-  const res = await fetch("/api/trpc/ai.extractFromVoice", {
+  const res = await fetch(`${BASE_PATH}/api/trpc/ai.extractFromVoice`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ json: { audioBase64, mimeType } }),
@@ -171,7 +173,7 @@ async function extractFromVoice(
 }
 
 async function confirmAndSaveTask(fields: ExtractedFields): Promise<Task> {
-  const res = await fetch("/api/trpc/ai.confirmAndSave", {
+  const res = await fetch(`${BASE_PATH}/api/trpc/ai.confirmAndSave`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

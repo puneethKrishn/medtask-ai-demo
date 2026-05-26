@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   LayoutDashboard,
   ListTodo,
@@ -49,7 +50,7 @@ export function Sidebar() {
       <nav className="flex-1 px-3 py-4">
         <div className="space-y-1">
           {navItems.map((item) => (
-            <a
+            <Link
               key={item.label}
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -63,7 +64,7 @@ export function Sidebar() {
               {item.active && (
                 <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
               )}
-            </a>
+            </Link>
           ))}
         </div>
 
@@ -72,14 +73,14 @@ export function Sidebar() {
         </div>
         <div className="space-y-1">
           {bottomItems.map((item) => (
-            <a
+            <Link
               key={item.label}
               href={item.href}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-all"
             >
               <item.icon className="w-[18px] h-[18px]" />
               {item.label}
-            </a>
+            </Link>
           ))}
         </div>
       </nav>
