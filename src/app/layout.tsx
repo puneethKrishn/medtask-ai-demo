@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { SessionTimeoutProvider } from "@/components/session-timeout";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -40,7 +41,9 @@ export default function RootLayout({
             <span className="text-xs text-gray-400">Demo</span>
           </div>
         </nav>
-        <main className="px-4 py-6">{children}</main>
+        <SessionTimeoutProvider>
+          <main className="px-4 py-6">{children}</main>
+        </SessionTimeoutProvider>
       </body>
     </html>
   );
