@@ -1,97 +1,76 @@
-import { pgTable, text, timestamp, uuid, pgEnum, boolean, integer } from "drizzle-orm/pg-core";
+import { mysqlTable, varchar, text, timestamp, mysqlEnum, boolean, int } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
-export const taskStatusEnum = pgEnum("task_status", [
-  "open",
-  "in_progress",
-  "done",
-  "snoozed",
-]);
+export const taskStatusEnum = ["open", "in_progress", "done", "snoozed"] as const;
+export const taskPriorityEnum = ["low", "medium", "high", "urgent"] as const;
+export const taskSourceEnum = ["manual", "ai_extracted", "ehr_sync"] as const;
+export const userRoleEnum = ["owner", "admin", "provider", "staff", "readonly"] as const;
 
-export const taskPriorityEnum = pgEnum("task_priority", [
-  "low",
-  "medium",
-  "high",
-  "urgent",
-]);
-
-export const taskSourceEnum = pgEnum("task_source", [
-  "manual",
-  "ai_extracted",
-  "ehr_sync",
-]);
-
-export const userRoleEnum = pgEnum("user_role", [
-  "owner",
-  "admin",
-  "provider",
-  "staff",
-  "readonly",
-]);
-
-export const orgs = pgTable("orgs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  clerkOrgId: text("clerk_org_id").unique(),
-  name: text("name").notNull(),
-  planTier: text("plan_tier").notNull().default("free"),
+export const orgs = mysqlTable("orgs", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => randomUUID()),
+  clerkOrgId: varchar("clerk_org_id", { length: 255 }).unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  planTier: varchar("plan_tier", { length: 50 }).notNull().default("free"),
   mfaRequired: boolean("mfa_required").notNull().default(false),
-  sessionTimeoutMinutes: integer("session_timeout_minutes").notNull().default(15),
+  sessionTimeoutMinutes: int("session_timeout_minutes").notNull().default(15),
   settings: text("settings"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  clerkUserId: text("clerk_user_id").unique(),
-  orgId: uuid("org_id")
+export const users = mysqlTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => randomUUID()),
+  clerkUserId: varchar("clerk_user_id", { length: 255 }).unique(),
+  orgId: varchar("org_id", { length: 36 })
     .notNull()
     .references(() => orgs.id),
-  email: text("email").notNull(),
-  name: text("name").notNull(),
-  role: userRoleEnum("role").notNull().default("provider"),
+  email: varchar("email", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  role: mysqlEnum("role", userRoleEnum).notNull().default("provider"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const patients = pgTable("patients", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orgId: uuid("org_id")
+export const patients = mysqlTable("patients", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => randomUUID()),
+  orgId: varchar("org_id", { length: 36 })
     .notNull()
     .references(() => orgs.id),
-  mrnHash: text("mrn_hash"),
-  displayName: text("display_name").notNull(),
+  mrnHash: varchar("mrn_hash", { length: 255 }),
+  displayName: varchar("display_name", { length: 255 }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const tasks = pgTable("tasks", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  orgId: uuid("org_id")
+export const tasks = mysqlTable("tasks", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => randomUUID()),
+  orgId: varchar("org_id", { length: 36 })
     .notNull()
     .references(() => orgs.id),
-  title: text("title").notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
   description: text("description"),
-  status: taskStatusEnum("status").notNull().default("open"),
-  priority: taskPriorityEnum("priority").notNull().default("medium"),
-  assigneeId: uuid("assignee_id").references(() => users.id),
-  patientId: uuid("patient_id").references(() => patients.id),
+  status: mysqlEnum("status", taskStatusEnum).notNull().default("open"),
+  priority: mysqlEnum("priority", taskPriorityEnum).notNull().default("medium"),
+  assigneeId: varchar("assignee_id", { length: 36 }).references(() => users.id),
+  patientId: varchar("patient_id", { length: 36 }).references(() => patients.id),
   dueAt: timestamp("due_at"),
-  source: taskSourceEnum("source").notNull().default("manual"),
-  createdBy: uuid("created_by").references(() => users.id),
+  source: mysqlEnum("source", taskSourceEnum).notNull().default("manual"),
+  createdBy: varchar("created_by", { length: 36 }).references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const taskAuditLog = pgTable("task_audit_log", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  taskId: uuid("task_id")
+export const taskAuditLog = mysqlTable("task_audit_log", {
+  id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => randomUUID()),
+  taskId: varchar("task_id", { length: 36 })
     .notNull()
     .references(() => tasks.id),
-  userId: uuid("user_id").references(() => users.id),
-  action: text("action").notNull(),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id),
+  action: varchar("action", { length: 255 }).notNull(),
   diff: text("diff"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export type Task = typeof tasks.;
-export type NewTask = typeof tasks.;
-export type TaskStatus = (typeof taskStatusEnum.enumValues)[number];
-export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
+export type TaskStatus = (typeof taskStatusEnum)[number];
+export type TaskPriority = (typeof taskPriorityEnum)[number];

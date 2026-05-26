@@ -1,6 +1,6 @@
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { migrate } from "drizzle-orm/mysql2/migrator";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 
 async function runMigrations() {
   const connectionString = process.env.DATABASE_URL;
@@ -8,14 +8,14 @@ async function runMigrations() {
     throw new Error("DATABASE_URL environment variable is required");
   }
 
-  const migrationClient = postgres(connectionString, { max: 1 });
-  const db = drizzle(migrationClient);
+  const connection = await mysql.createConnection(connectionString);
+  const db = drizzle(connection);
 
   console.log("Running migrations...");
   await migrate(db, { migrationsFolder: "./drizzle" });
   console.log("Migrations complete.");
 
-  await migrationClient.end();
+  await connection.end();
 }
 
 runMigrations().catch((err) => {

@@ -1,4 +1,4 @@
-// In-memory store for MVP demo. Replace with Drizzle + Postgres for production.
+// In-memory store for MVP demo. Replace with Drizzle + MySQL for production.
 import { randomUUID } from "crypto";
 import type { Task, TaskStatus, TaskPriority } from "./schema";
 

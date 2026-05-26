@@ -26,10 +26,10 @@ under HIPAA and must sign a BAA before production use.
     containing PHI (task titles, descriptions referencing patients).
   - Action: Execute Vercel Enterprise BAA.
 
-- **Railway (Postgres):**
+- **Railway (MySQL):**
   - Offers BAA on Pro plan.
   - Database stores all PHI (tasks, patients, audit logs).
-  - Encryption at rest is handled by managed Postgres (AES-256).
+  - Encryption at rest is handled by managed MySQL (AES-256).
   - Action: Execute Railway BAA before production database provisioning.
 
 ### 3. Future Integrations
@@ -44,7 +44,7 @@ Any new service that touches PHI needs a BAA **before** integration:
 
 | Layer            | Mechanism                        | Owner           |
 |------------------|----------------------------------|-----------------|
-| At rest (DB)     | AES-256, managed Postgres        | Railway/Vercel  |
+| At rest (DB)     | AES-256, managed MySQL        | Railway/Vercel  |
 | In transit       | TLS 1.3                          | Hosting + CDN   |
 | Application logs | PHI scrubbed before output       | MedTask app     |
 | Backups          | Encrypted by hosting provider    | Railway/Vercel  |

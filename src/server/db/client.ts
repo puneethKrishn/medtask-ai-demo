@@ -1,30 +1,29 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import * as schema from "./schema";
 
-type DB = ReturnType<typeof drizzle<typeof schema>>;
+let _db: MySql2Database<typeof schema> | null = null;
+let _pool: mysql.Pool | null = null;
 
-let _db: DB | null = null;
-let _queryClient: ReturnType<typeof postgres> | null = null;
-
-function initDb(): DB {
+function initDb(): MySql2Database<typeof schema> {
   if (!_db) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error("DATABASE_URL environment variable is required");
     }
-    _queryClient = postgres(connectionString, {
-      max: 10,
-      idle_timeout: 20,
-      connect_timeout: 10,
+    _pool = mysql.createPool({
+      uri: connectionString,
+      waitForConnections: true,
+      connectionLimit: 10,
+      idleTimeout: 20000,
     });
-    _db = drizzle(_queryClient, { schema });
+    _db = drizzle(_pool, { schema, mode: "default" }) as MySql2Database<typeof schema>;
   }
   return _db;
 }
 
 // Lazy proxy — only connects when actually used at runtime
-export const db: DB = new Proxy({} as DB, {
+export const db = new Proxy({} as MySql2Database<typeof schema>, {
   get(_target, prop, receiver) {
     const real = initDb();
     const value = Reflect.get(real, prop, receiver);
@@ -32,6 +31,6 @@ export const db: DB = new Proxy({} as DB, {
   },
 });
 
-export function getQueryClient() {
-  return _queryClient;
+export function getPool() {
+  return _pool;
 }
