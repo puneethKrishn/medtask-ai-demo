@@ -15,6 +15,10 @@ import {
   Check,
   X,
   Edit3,
+  ListTodo,
+  TrendingUp,
+  Zap,
+  ClipboardList,
 } from "lucide-react";
 
 interface Task {
@@ -30,9 +34,19 @@ interface Task {
 
 const statusIcons: Record<string, React.ReactNode> = {
   open: <Circle className="w-4 h-4 text-blue-500" />,
-  in_progress: <Clock className="w-4 h-4 text-yellow-500" />,
-  done: <CheckCircle2 className="w-4 h-4 text-green-500" />,
-  snoozed: <Clock className="w-4 h-4 text-gray-400" />,
+  in_progress: <Clock className="w-4 h-4 text-amber-500" />,
+  done: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
+  snoozed: <Clock className="w-4 h-4 text-slate-400" />,
+};
+
+const priorityConfig: Record<
+  string,
+  { bg: string; text: string; dot: string }
+> = {
+  urgent: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
+  high: { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500" },
+  medium: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500" },
+  low: { bg: "bg-slate-50", text: "text-slate-600", dot: "bg-slate-400" },
 };
 
 const priorityColors: Record<string, string> = {
@@ -194,10 +208,48 @@ function cycleStatus(current: string): "open" | "in_progress" | "done" {
   return "open";
 }
 
+function formatDate(date: string): string {
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+// --- Stat Card ---
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+  bgColor,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: number;
+  color: string;
+  bgColor: string;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-slate-500 font-medium">{label}</p>
+          <p className="text-3xl font-bold text-slate-900 mt-1">{value}</p>
+        </div>
+        <div className={`w-12 h-12 rounded-2xl ${bgColor} flex items-center justify-center`}>
+          <Icon className={`w-6 h-6 ${color}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Component ---
 
 export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [newTitle, setNewTitle] = useState("");
@@ -215,13 +267,18 @@ export default function HomePage() {
   const [aiSaving, setAiSaving] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [showAiPanel, setShowAiPanel] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   const loadTasks = useCallback(async () => {
     setLoading(true);
-    const data = await fetchTasks(filter === "all" ? undefined : filter);
-    setTasks(data);
+    const [filtered, all] = await Promise.all([
+      fetchTasks(filter === "all" ? undefined : filter),
+      filter === "all" ? Promise.resolve([]) : fetchTasks(),
+    ]);
+    setTasks(filtered);
+    setAllTasks(filter === "all" ? filtered : all);
     setLoading(false);
   }, [filter]);
 
@@ -317,6 +374,7 @@ export default function HomePage() {
       setAiEditMode(false);
       setAiInput("");
       setAiError(null);
+      setShowAiPanel(false);
       loadTasks();
     } catch (err: unknown) {
       setAiError(err instanceof Error ? err.message : "Save failed");
@@ -331,280 +389,338 @@ export default function HomePage() {
     setAiError(null);
   };
 
+  const statsSource = filter === "all" ? tasks : allTasks;
   const counts = {
-    open: tasks.filter((t) => t.status === "open").length,
-    in_progress: tasks.filter((t) => t.status === "in_progress").length,
+    total: statsSource.length,
+    open: statsSource.filter((t) => t.status === "open").length,
+    in_progress: statsSource.filter((t) => t.status === "in_progress").length,
+    done: statsSource.filter((t) => t.status === "done").length,
+    overdue: statsSource.filter(
+      (t) => t.dueAt && formatDue(t.dueAt) === "Overdue"
+    ).length,
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div>
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {counts.open} open, {counts.in_progress} in progress
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Welcome back, Dr. Demo
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" />
-          New Task
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAiPanel(!showAiPanel)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:from-purple-700 hover:to-indigo-700 transition-all text-sm font-medium shadow-md shadow-purple-200"
+          >
+            <Sparkles className="w-4 h-4" />
+            AI Extract
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium shadow-md shadow-blue-200"
+          >
+            <Plus className="w-4 h-4" />
+            New Task
+          </button>
+        </div>
       </div>
 
-      {/* AI Task Extraction */}
-      <div className="mb-4 p-4 bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl border border-purple-200">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-4 h-4 text-purple-600" />
-          <h2 className="text-sm font-semibold text-purple-900">
-            AI Task Extraction
-          </h2>
-        </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <StatCard
+          icon={ClipboardList}
+          label="Total Tasks"
+          value={counts.total}
+          color="text-blue-600"
+          bgColor="bg-blue-50"
+        />
+        <StatCard
+          icon={Circle}
+          label="Open"
+          value={counts.open}
+          color="text-sky-600"
+          bgColor="bg-sky-50"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="In Progress"
+          value={counts.in_progress}
+          color="text-amber-600"
+          bgColor="bg-amber-50"
+        />
+        <StatCard
+          icon={Zap}
+          label="Completed"
+          value={counts.done}
+          color="text-emerald-600"
+          bgColor="bg-emerald-50"
+        />
+      </div>
 
-        {!aiEditMode ? (
-          <>
-            <div className="relative">
-              <textarea
-                value={aiInput}
-                onChange={(e) => setAiInput(e.target.value)}
-                placeholder='Describe a task naturally, e.g. "Need to review Mrs. Johnson&#39;s lab results urgently before her appointment tomorrow"'
-                className="w-full px-3 py-2 pr-12 border border-purple-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white resize-none"
-                rows={3}
-                disabled={aiExtracting}
-              />
-              <button
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={aiExtracting}
-                className={`absolute right-2 top-2 p-2 rounded-lg transition-colors ${
-                  isRecording
-                    ? "bg-red-100 text-red-600 hover:bg-red-200 animate-pulse"
-                    : "bg-purple-100 text-purple-600 hover:bg-purple-200"
-                }`}
-                title={isRecording ? "Stop recording" : "Record voice"}
-              >
-                {isRecording ? (
-                  <MicOff className="w-4 h-4" />
-                ) : (
-                  <Mic className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-[10px] text-purple-500">
-                {isRecording
-                  ? "Recording... click mic to stop"
-                  : "Type or use voice input"}
-              </span>
-              <button
-                onClick={handleAiExtract}
-                disabled={!aiInput.trim() || aiExtracting}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
-              >
-                {aiExtracting ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3 h-3" />
-                )}
-                Extract Task
-              </button>
-            </div>
-          </>
-        ) : aiExtracted ? (
-          <div className="space-y-3">
-            {aiExtracted.confidence < 0.7 && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <AlertTriangle className="w-4 h-4 text-yellow-600 shrink-0" />
-                <span className="text-xs text-yellow-800">
-                  Low confidence ({Math.round(aiExtracted.confidence * 100)}%)
-                  — please review carefully
-                </span>
+      {/* AI Task Extraction Panel */}
+      {showAiPanel && (
+        <div className="mb-6 p-5 bg-white rounded-2xl border border-purple-200/60 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
-            )}
-
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                Title
-              </label>
-              <input
-                type="text"
-                value={aiExtracted.title}
-                onChange={(e) =>
-                  setAiExtracted({ ...aiExtracted, title: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                Description
-              </label>
-              <textarea
-                value={aiExtracted.description}
-                onChange={(e) =>
-                  setAiExtracted({
-                    ...aiExtracted,
-                    description: e.target.value,
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                rows={2}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                  Patient
+                <h2 className="text-sm font-semibold text-slate-900">
+                  AI Task Extraction
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  Describe a task naturally or use voice input
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowAiPanel(false);
+                handleAiDiscard();
+              }}
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {!aiEditMode ? (
+            <>
+              <div className="relative">
+                <textarea
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  placeholder='e.g. "Need to review Mrs. Johnson&#39;s lab results urgently before her appointment tomorrow"'
+                  className="w-full px-4 py-3 pr-12 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-slate-50 resize-none placeholder:text-slate-400"
+                  rows={3}
+                  disabled={aiExtracting}
+                />
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={aiExtracting}
+                  className={`absolute right-3 top-3 p-2 rounded-xl transition-colors ${
+                    isRecording
+                      ? "bg-red-100 text-red-600 hover:bg-red-200 animate-pulse"
+                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                  }`}
+                  title={isRecording ? "Stop recording" : "Record voice"}
+                >
+                  {isRecording ? (
+                    <MicOff className="w-4 h-4" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+              <div className="flex justify-between items-center mt-3">
+                <span className="text-[11px] text-slate-400">
+                  {isRecording
+                    ? "Recording... click mic to stop"
+                    : "Type or use voice input"}
+                </span>
+                <button
+                  onClick={handleAiExtract}
+                  disabled={!aiInput.trim() || aiExtracting}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-medium hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 transition-all shadow-sm"
+                >
+                  {aiExtracting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  Extract Task
+                </button>
+              </div>
+            </>
+          ) : aiExtracted ? (
+            <div className="space-y-4">
+              {aiExtracted.confidence < 0.7 && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="text-xs text-amber-800">
+                    Low confidence ({Math.round(aiExtracted.confidence * 100)}%)
+                    — please review carefully
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+                  Title
                 </label>
                 <input
                   type="text"
-                  value={aiExtracted.patient}
+                  value={aiExtracted.title}
                   onChange={(e) =>
-                    setAiExtracted({ ...aiExtracted, patient: e.target.value })
+                    setAiExtracted({ ...aiExtracted, title: e.target.value })
                   }
-                  placeholder="None"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                  Priority
+                <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+                  Description
                 </label>
-                <div className="flex gap-1">
-                  {(["low", "medium", "high", "urgent"] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() =>
-                        setAiExtracted({ ...aiExtracted, priority: p })
-                      }
-                      className={`px-2 py-1.5 rounded text-[10px] font-medium border transition-colors ${
-                        aiExtracted.priority === p
-                          ? priorityColors[p]
-                          : "bg-white text-gray-400 border-gray-200"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                  Due Date
-                </label>
-                <input
-                  type="datetime-local"
-                  value={
-                    aiExtracted.dueDate
-                      ? new Date(aiExtracted.dueDate).toISOString().slice(0, 16)
-                      : ""
-                  }
+                <textarea
+                  value={aiExtracted.description}
                   onChange={(e) =>
                     setAiExtracted({
                       ...aiExtracted,
-                      dueDate: e.target.value
-                        ? new Date(e.target.value).toISOString()
-                        : "",
+                      description: e.target.value,
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                  rows={2}
                 />
               </div>
-            </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-purple-100">
-              <span className="text-[10px] text-purple-500">
-                Confidence: {Math.round(aiExtracted.confidence * 100)}%
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleAiDiscard}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                  Discard
-                </button>
-                <button
-                  onClick={() => {
-                    setAiEditMode(false);
-                    setAiExtracted(null);
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-purple-600 hover:text-purple-700 transition-colors"
-                >
-                  <Edit3 className="w-3 h-3" />
-                  Re-extract
-                </button>
-                <button
-                  onClick={handleAiSave}
-                  disabled={!aiExtracted.title.trim() || aiSaving}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
-                >
-                  {aiSaving ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Check className="w-3 h-3" />
-                  )}
-                  Save Task
-                </button>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+                    Patient
+                  </label>
+                  <input
+                    type="text"
+                    value={aiExtracted.patient}
+                    onChange={(e) =>
+                      setAiExtracted({
+                        ...aiExtracted,
+                        patient: e.target.value,
+                      })
+                    }
+                    placeholder="None"
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+                    Priority
+                  </label>
+                  <div className="flex gap-1">
+                    {(["low", "medium", "high", "urgent"] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() =>
+                          setAiExtracted({ ...aiExtracted, priority: p })
+                        }
+                        className={`px-2 py-2 rounded-lg text-[10px] font-medium border transition-colors ${
+                          aiExtracted.priority === p
+                            ? priorityColors[p]
+                            : "bg-white text-slate-400 border-slate-200"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-500 uppercase tracking-wide mb-1.5">
+                    Due Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={
+                      aiExtracted.dueDate
+                        ? new Date(aiExtracted.dueDate)
+                            .toISOString()
+                            .slice(0, 16)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setAiExtracted({
+                        ...aiExtracted,
+                        dueDate: e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : "",
+                      })
+                    }
+                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <span className="text-[11px] text-slate-400">
+                  Confidence: {Math.round(aiExtracted.confidence * 100)}%
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAiDiscard}
+                    className="flex items-center gap-1 px-3 py-2 text-xs text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                    Discard
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAiEditMode(false);
+                      setAiExtracted(null);
+                    }}
+                    className="flex items-center gap-1 px-3 py-2 text-xs text-purple-600 hover:text-purple-700 rounded-lg hover:bg-purple-50 transition-colors"
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    Re-extract
+                  </button>
+                  <button
+                    onClick={handleAiSave}
+                    disabled={!aiExtracted.title.trim() || aiSaving}
+                    className="flex items-center gap-1 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    {aiSaving ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Check className="w-3 h-3" />
+                    )}
+                    Save Task
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {aiError && (
-          <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
-            <span className="text-xs text-red-700">{aiError}</span>
-          </div>
-        )}
-      </div>
+          {aiError && (
+            <div className="mt-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+              <span className="text-xs text-red-700">{aiError}</span>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Filters */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-        {(["all", "open", "in_progress", "done"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-              filter === s
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {s === "all" ? "All" : statusLabels[s]}
-          </button>
-        ))}
-      </div>
-
-      {/* Create form */}
+      {/* Create Task Form */}
       {showCreate && (
-        <div className="mb-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="mb-6 p-5 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-900 mb-3">
+            Create New Task
+          </h3>
           <form onSubmit={handleCreate}>
             <input
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="What needs to be done?"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+              className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3 bg-slate-50"
               autoFocus
             />
             <div className="flex items-center justify-between">
-              <div className="flex gap-1">
+              <div className="flex gap-1.5">
                 {(["low", "medium", "high", "urgent"] as const).map((p) => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => setNewPriority(p)}
-                    className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       newPriority === p
                         ? priorityColors[p]
-                        : "bg-white text-gray-400 border-gray-200"
+                        : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     {p}
@@ -615,19 +731,19 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setShowCreate(false)}
-                  className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700"
+                  className="px-4 py-2 text-xs text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!newTitle.trim() || creating}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-medium hover:bg-blue-700 disabled:opacity-50 shadow-sm transition-colors"
                 >
                   {creating ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
                   ) : (
-                    "Add"
+                    "Create"
                   )}
                 </button>
               </div>
@@ -636,92 +752,153 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Task list */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        </div>
-      ) : tasks.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-sm">No tasks yet</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              className={`group p-4 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all ${
-                task.status === "done" ? "opacity-60" : ""
-              }`}
-            >
-              <div className="flex items-start gap-3">
+      {/* Task List Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+        {/* Section header with filters */}
+        <div className="px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ListTodo className="w-5 h-5 text-slate-400" />
+              <h2 className="text-base font-semibold text-slate-900">Tasks</h2>
+              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs font-medium rounded-full">
+                {tasks.length}
+              </span>
+            </div>
+            <div className="flex gap-1.5">
+              {(["all", "open", "in_progress", "done"] as const).map((s) => (
                 <button
-                  onClick={() => handleStatusToggle(task)}
-                  className="mt-0.5 hover:scale-110 transition-transform"
-                  title={`Click to mark as ${cycleStatus(task.status)}`}
+                  key={s}
+                  onClick={() => setFilter(s)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    filter === s
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                  }`}
                 >
-                  {statusIcons[task.status]}
+                  {s === "all" ? "All" : statusLabels[s]}
                 </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3
-                      className={`text-sm font-medium ${
-                        task.status === "done"
-                          ? "line-through text-gray-400"
-                          : "text-gray-900"
-                      }`}
-                    >
-                      {task.title}
-                    </h3>
-                    {task.source === "ai_extracted" && (
-                      <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-medium rounded">
-                        AI
-                      </span>
-                    )}
-                  </div>
-                  {task.description && (
-                    <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-                      {task.description}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
-                        priorityColors[task.priority]
-                      }`}
-                    >
-                      {task.priority}
-                    </span>
-                    {task.dueAt && (
-                      <span
-                        className={`flex items-center gap-1 text-[10px] ${
-                          formatDue(task.dueAt) === "Overdue"
-                            ? "text-red-600"
-                            : "text-gray-500"
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Task list */}
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+              <ClipboardList className="w-8 h-8 text-slate-300" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-700 mb-1">
+              No tasks yet
+            </h3>
+            <p className="text-sm text-slate-400 text-center max-w-sm mb-6">
+              Get started by creating a task manually or use AI to extract tasks
+              from natural language descriptions.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowAiPanel(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-sm font-medium hover:from-purple-700 hover:to-indigo-700 transition-all shadow-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                Try AI Extract
+              </button>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 px-4 py-2.5 border border-slate-200 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Manually
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                className={`group px-5 py-4 hover:bg-slate-50/50 transition-colors ${
+                  task.status === "done" ? "opacity-60" : ""
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => handleStatusToggle(task)}
+                    className="mt-0.5 hover:scale-110 transition-transform"
+                    title={`Click to mark as ${cycleStatus(task.status)}`}
+                  >
+                    {statusIcons[task.status]}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3
+                        className={`text-sm font-medium ${
+                          task.status === "done"
+                            ? "line-through text-slate-400"
+                            : "text-slate-900"
                         }`}
                       >
-                        {formatDue(task.dueAt) === "Overdue" ? (
-                          <AlertTriangle className="w-3 h-3" />
-                        ) : (
-                          <Clock className="w-3 h-3" />
-                        )}
-                        {formatDue(task.dueAt)}
-                      </span>
+                        {task.title}
+                      </h3>
+                      {task.source === "ai_extracted" && (
+                        <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-[10px] font-medium rounded-md flex items-center gap-0.5">
+                          <Sparkles className="w-2.5 h-2.5" />
+                          AI
+                        </span>
+                      )}
+                    </div>
+                    {task.description && (
+                      <p className="text-xs text-slate-400 line-clamp-2 mb-2">
+                        {task.description}
+                      </p>
                     )}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium ${priorityConfig[task.priority].bg} ${priorityConfig[task.priority].text}`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${priorityConfig[task.priority].dot}`}
+                        />
+                        {task.priority}
+                      </span>
+                      {task.dueAt && (
+                        <span
+                          className={`flex items-center gap-1 text-[10px] ${
+                            formatDue(task.dueAt) === "Overdue"
+                              ? "text-red-600 font-medium"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {formatDue(task.dueAt) === "Overdue" ? (
+                            <AlertTriangle className="w-3 h-3" />
+                          ) : (
+                            <Clock className="w-3 h-3" />
+                          )}
+                          {formatDue(task.dueAt)}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-300">
+                        {formatDate(task.createdAt)}
+                      </span>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => handleDelete(task.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 rounded-lg hover:bg-red-50 transition-all"
+                    title="Delete task"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDelete(task.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all"
-                  title="Delete task"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

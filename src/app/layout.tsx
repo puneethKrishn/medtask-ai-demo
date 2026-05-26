@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { SessionTimeoutProvider } from "@/components/session-timeout";
+import { Sidebar } from "@/components/sidebar";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -30,21 +31,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 font-[family-name:var(--font-geist-sans)]`}
       >
-        <nav className="bg-white border-b border-gray-200 px-4 py-3">
-          <div className="max-w-2xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-blue-600">MedTask</span>
-              <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
-                AI
-              </span>
-            </div>
-            <span className="text-xs text-gray-400">Demo</span>
-          </div>
-        </nav>
         <SessionTimeoutProvider>
-          <main className="px-4 py-6">{children}</main>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1 ml-[260px]">
+              <div className="p-6 lg:p-8 max-w-5xl">{children}</div>
+            </main>
+          </div>
         </SessionTimeoutProvider>
       </body>
     </html>
