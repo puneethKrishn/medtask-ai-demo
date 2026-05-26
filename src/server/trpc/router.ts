@@ -1,13 +1,84 @@
 import { z } from "zod";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { router, publicProcedure } from "./init";
 import { db } from "../db/client";
 import { tasks, taskAuditLog } from "../db/schema";
+import { extractTaskFromText, transcribeAndExtract } from "../ai/extract-task";
+import { checkRateLimit } from "../ai/rate-limiter";
 
 // Hardcoded for MVP — will come from auth context later
 const DEMO_ORG_ID = "00000000-0000-0000-0000-000000000001";
+const DEMO_PLAN_TIER = "free";
 
 export const appRouter = router({
+  ai: router({
+    extractFromText: publicProcedure
+      .input(z.object({ text: z.string().min(3).max(5000) }))
+      .mutation(async ({ input }) => {
+        const rate = checkRateLimit(DEMO_ORG_ID, DEMO_PLAN_TIER);
+        if (!rate.allowed) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `Rate limit exceeded. Resets at ${new Date(rate.resetAt).toISOString()}`,
+          });
+        }
+        const extracted = await extractTaskFromText(input.text);
+        return { ...extracted, rateLimitRemaining: rate.remaining };
+      }),
+
+    extractFromVoice: publicProcedure
+      .input(
+        z.object({
+          audioBase64: z.string().min(1),
+          mimeType: z.string().default("audio/webm"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const rate = checkRateLimit(DEMO_ORG_ID, DEMO_PLAN_TIER);
+        if (!rate.allowed) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `Rate limit exceeded. Resets at ${new Date(rate.resetAt).toISOString()}`,
+          });
+        }
+        const result = await transcribeAndExtract(input.audioBase64, input.mimeType);
+        return { ...result, rateLimitRemaining: rate.remaining };
+      }),
+
+    confirmAndSave: publicProcedure
+      .input(
+        z.object({
+          title: z.string().min(1).max(500),
+          description: z.string().max(2000).optional(),
+          patient: z.string().max(200).optional(),
+          priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+          dueAt: z.string().datetime().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const [row] = await db
+          .insert(tasks)
+          .values({
+            orgId: DEMO_ORG_ID,
+            title: input.title,
+            description: input.description ?? null,
+            priority: input.priority ?? "medium",
+            dueAt: input.dueAt ? new Date(input.dueAt) : null,
+            source: "ai_extracted",
+          })
+          .returning();
+
+        await db.insert(taskAuditLog).values({
+          taskId: row.id,
+          action: "created",
+          diff: JSON.stringify({ title: input.title, source: "ai_extracted", patient: input.patient }),
+        });
+
+        return row;
+      }),
+  }),
+
   tasks: router({
     list: publicProcedure
       .input(
