@@ -17,7 +17,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 
-const basePath = "/medcorp";
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/medcorp";
 
 const segments = [
   {
@@ -108,7 +108,7 @@ export default function WaitlistPage() {
       {/* Nav */}
       <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href={`${basePath}/waitlist`} className="flex items-center gap-2.5">
+          <Link href="/waitlist" className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200">
               <Stethoscope className="w-4 h-4 text-white" />
             </div>
